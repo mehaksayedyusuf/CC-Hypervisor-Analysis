@@ -1,4 +1,4 @@
-# Cloud Computing - Lab 1: Hypervisor Performance Analysis
+# Cloud Computing - Hypervisor Performance Analysis
 
 ---
 
