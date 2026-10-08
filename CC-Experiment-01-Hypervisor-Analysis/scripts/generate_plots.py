@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-os.makedirs('images', exist_ok=True)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+output_dir = os.path.abspath(os.path.join(script_dir, '..', 'screenshots', 'comparison'))
+os.makedirs(output_dir, exist_ok=True)
 
 # Styling configuration
 plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
@@ -45,7 +47,7 @@ ax.text(0.5, 0.86, f'Proxmox VE (Type-1) delivers +{pct_eps_diff:.2f}%\nhigher p
         bbox=dict(boxstyle="round,pad=0.55", facecolor='#eff6ff', edgecolor='#93c5fd', alpha=0.95))
 
 plt.tight_layout()
-plt.savefig('images/events_per_second_comparison.png')
+plt.savefig(os.path.join(output_dir, 'events_per_second_comparison.png'))
 plt.close()
 
 # -------------------------------------------------------------------------
@@ -76,7 +78,7 @@ for rect in rects2:
                 textcoords="offset points", ha='center', va='bottom', fontsize=9, fontweight='600', color='#7c2d12')
 
 plt.tight_layout()
-plt.savefig('images/latency_comparison.png')
+plt.savefig(os.path.join(output_dir, 'latency_comparison.png'))
 plt.close()
 
 # -------------------------------------------------------------------------
@@ -102,7 +104,7 @@ ax.text(0.5, 0.86, f'Proxmox VE completed +{diff_events:,} more events\n({pct_ep
         bbox=dict(boxstyle="round,pad=0.55", facecolor='#eff6ff', edgecolor='#93c5fd', alpha=0.95))
 
 plt.tight_layout()
-plt.savefig('images/total_events_comparison.png')
+plt.savefig(os.path.join(output_dir, 'total_events_comparison.png'))
 plt.close()
 
 # -------------------------------------------------------------------------
@@ -149,7 +151,7 @@ for bar in axs[1, 1].patches:
                        xytext=(0, 4), textcoords="offset points", ha='center', va='bottom', fontweight='bold', fontsize=9.5)
 
 plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig('images/overall_performance_dashboard.png')
+plt.savefig(os.path.join(output_dir, 'overall_performance_dashboard.png'))
 plt.close()
 
-print('Refined plots successfully generated.')
+print('Refined plots saved directly to screenshots/comparison/')

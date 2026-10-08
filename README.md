@@ -1,30 +1,44 @@
-# Cloud Computing Lab: Hypervisor Performance Benchmarking
-
-An empirical performance evaluation comparing **Type-1 (Bare-Metal)** and **Type-2 (Hosted)** hypervisors under standardized computational CPU workloads.
+# Cloud Computing - Lab 1: Hypervisor Performance Analysis
 
 ---
 
-### Author Metadata
-
-- **Name:** Mehak Sayed Yusuf
-- **USN:** 01FE24BCI012
-- **Division:** B | **Roll No.:** 202
-- **Course:** Cloud Computing Laboratory
-
----
-
-## 1. Executive Summary
-
-This study evaluates computational efficiency and virtualization tax by benchmarking two distinct hypervisor architectures using identical Ubuntu 22.04 LTS guest virtual machines. 
-
-### Key Findings
-- **Throughput:** Proxmox VE (Type-1) achieved **1,587.47 events/sec** versus VMware Workstation's **1,440.80 events/sec**, delivering a **+10.18% throughput advantage**.
-- **Latency Consistency:** Proxmox VE demonstrated lower mean latency (**0.63 ms** vs **0.69 ms**) and significantly tighter tail latency (**0.65 ms** vs **0.90 ms** at the 95th percentile).
-- **Peak Latency Jitter:** VMware Workstation experienced **29.10% higher peak latency spikes** (1.89 ms vs 1.34 ms), illustrating the scheduling interference inherent in hosted virtualization.
+## Table of Contents
+1. [Project Objectives](#1-project-objectives)
+2. [Hypervisor Architectural Comparison](#2-hypervisor-architectural-comparison)
+3. [Virtual Machine Specifications](#3-virtual-machine-specifications)
+4. [Experimental Procedure & Pre-Setups](#4-experimental-procedure--pre-setups)
+5. [Sysbench Screenshot Comparison](#5-sysbench-screenshot-comparison)
+6. [Performance Comparison Table](#6-performance-comparison-table)
+7. [Graphs](#7-graphs)
+8. [Takeaway & Conclusion](#8-takeaway--conclusion)
+9. [Repository Structure](#9-repository-structure)
+10. [How To Run](#10-how-to-run)
 
 ---
 
-## 2. Architectural Comparison
+## 1. Project Objectives
+The primary objectives of this Cloud Computing laboratory experiment are:
+1. **Deployment**: Provision two identical Ubuntu Virtual Machines across different hypervisor architectures:
+   - **Type-1 (Bare-Metal)**: Proxmox VE
+   - **Type-2 (Hosted)**: VMware Workstation Pro
+2. **Standardization**: Enforce uniform hardware resource allocations to ensure direct comparability.
+3. **Benchmarking**: Execute the `sysbench` CPU computational benchmark using 20,000 prime numbers to stress test CPU virtualization efficiency.
+4. **Metric Collection**: Capture execution time, total events processed, throughput (events/sec), and latency statistics.
+5. **Architectural Evaluation**: Quantify the performance overhead introduced by host operating system abstraction layers in Type-2 hypervisors versus bare-metal hypervisor execution.
+
+---
+
+## 2. Hypervisor Architectural Comparison
+
+### Type-1 Hypervisor (Proxmox VE - Bare-Metal)
+- **Architecture**: Operates directly on the physical server's hardware.
+- **Mechanism**: Utilizes the Linux kernel integrated with KVM. Guest VM instructions execute directly on the hardware's CPU extensions.
+- **Impact**: Minimal hypervisor interception eliminates heavy delays, offering native-like performance.
+
+### Type-2 Hypervisor (VMware Workstation - Hosted)
+- **Architecture**: Operates as a software application on top of an existing host OS (e.g., Windows).
+- **Mechanism**: Privileged guest CPU operations undergo a double translation process through the VMware engine and the host OS kernel.
+- **Impact**: The host OS scheduler introduces thread preemptions as the VM competes with background desktop services, leading to higher baseline latency.
 
 ```text
        Type-1: Proxmox VE (Bare-Metal)               Type-2: VMware Workstation (Hosted)
@@ -39,133 +53,216 @@ This study evaluates computational efficiency and virtualization tax by benchmar
   └─────────────────────────────────────────┘   └─────────────────────────────────────────┘
 ```
 
-- **Type-1 (Proxmox VE / KVM):** The hypervisor controls physical resources directly. Virtual CPUs execute instructions via hardware-assisted extensions (Intel VT-x) with minimal abstraction.
-- **Type-2 (VMware Workstation):** The hypervisor runs as an application atop a host OS. Virtual resources and thread execution are subject to host scheduler arbitration and OS context switches.
+---
+
+## 3. Virtual Machine Specifications
+To guarantee scientific accuracy and eliminate resource skewing, identical configurations were assigned to both VMs during setup:
+
+| Resource Parameter | Proxmox VE (Type-1) | VMware Workstation (Type-2) | 
+| :--- | :--- | :--- | 
+| **VM Name** | `vm01-type01` | `nupur-virtual-machine` | 
+| **Guest OS** | Ubuntu 22.04.5 LTS (x86_64) | Ubuntu 22.04.5 LTS (x86_64) | 
+| **CPU Allocation**| 2 vCPU (1 Socket, 2 Cores) | 2 vCPU (1 Processor, 2 Cores) | 
+| **RAM Allocation**| 2048 MiB (2.0 GB) | 2048 MB (~2.0 GB) | 
+| **Virtual Disk** | 20.0 GB (`local-lvm`) | 20.0 GB (Single File) | 
+| **Network Adapter**| Bridge (`vmbr0`) | NAT (`VMnet8`) | 
+| **Benchmark Tool** | `sysbench` | `sysbench` | 
 
 ---
 
-## 3. Testbed Specifications & Workload Profile
+## 4. Experimental Procedure & Pre-Setups
 
-To ensure strict experimental control, identical virtual hardware constraints were provisioned on both platforms:
+### Part A: Type-1 Hypervisor Setup (Proxmox VE)
+1. **Access**: Logged into the Proxmox VE web interface via `https://<PROXMOX_SERVER_IP>:8006`.
+2. **VM Creation Stages**: `General -> OS -> System -> Disks -> CPU -> Memory -> Network -> Confirm`
+3. **Configuration**: 
+   - **OS**: Selected `ubuntu-22.04.5.iso` from local storage.
+   - **Disks**: Allocated 20 GB on `local-lvm`.
+   - **CPU**: 1 Socket, 2 Cores (Total 2 vCPU).
+   - **Memory**: 2048 MiB.
+   - **Network**: Assigned to `vmbr0` bridge.
+4. **Installation**: Started the VM, opened the Console, and completed the standard Ubuntu Normal Installation.
+5. **Verification**: Verify 2 Cores, 2GB RAM, and 20GB Disk:
+   ```bash
+   hostnamectl # Displays system hostname and detailed OS/kernel metadata
+   lscpu       # Lists CPU architecture details (cores, threads, sockets, cache sizes)
+   free -h     # Shows total, used, and available RAM/Swap in human-readable units
+   df -h       # Displays disk space usage across mounted filesystems
+   ```
 
-| Parameter | Proxmox VE (Type-1) | VMware Workstation (Type-2) | Control Status |
-| :--- | :--- | :--- | :---: |
-| **Guest OS** | Ubuntu 22.04.5 LTS (x86_64) | Ubuntu 22.04.5 LTS (x86_64) | Matched |
-| **vCPU Allocation** | 2 vCPU (1 socket, 2 cores) | 2 vCPU (1 processor, 2 cores) | Matched |
-| **Memory Allocation** | 2048 MiB (2 GB RAM) | 2048 MB (~2 GB RAM) | Matched |
-| **Virtual Disk** | 20 GB Virtual Storage | 20 GB Virtual Storage | Matched |
-| **Network Mode** | Bridged (`vmbr0`) | NAT (`VMnet8`) | Configured |
-| **Hardware Introspection**| `QEMU Virtual CPU 2.5+` | `Intel Core i5-13450HX` | Presented |
+### Part B: Type-2 Hypervisor Setup (VMware Workstation)
+1. **Access**: Launched VMware Workstation and selected "Create a New Virtual Machine" (Typical Configuration).
+2. **Configuration**:
+   - **OS**: Mounted `ubuntu-22.04.5.iso`.
+   - **Disks**: Set Maximum Disk Size to 20 GB (Stored as a single file).
+   - **Hardware Customization**: Set Memory to 2048 MB, Processors to 1 (with 2 Cores), and Network Adapter to NAT.
+3. **Installation**: Powered on the VM and completed the standard Ubuntu Normal Installation.
+4. **Verification**: Executed the same terminal commands (`lscpu`, `free -h`, `df -h`) to confirm the identical allocation of hardware resources.
 
-### Workload Command
-CPU performance was benchmarked using `sysbench` calculating prime numbers up to 20,000 using 1 worker thread over a 10-second sampling window:
-
+### Part C: Benchmark Execution
+On both machines, the following commands were executed to run the test:
 ```bash
-# Install benchmark utility
-sudo apt update && sudo apt install sysbench -y
-
-# Run prime computation benchmark
-sysbench cpu --cpu-max-prime=20000 run
+sudo apt update                       # Refreshes the local package index
+sudo apt install sysbench -y          # Installs the sysbench benchmarking tool
+sysbench cpu --cpu-max-prime=20000 run # Benchmarks CPU performance by calculating prime numbers up to 20,000
 ```
 
 ---
 
-## 4. Benchmark Console Evidence
+## 5. Sysbench Screenshot Comparison
 
-### Proxmox VE (Type-1 Hypervisor)
-Captured execution output from the Proxmox VE Ubuntu virtual machine:
+Raw console verification of the benchmark results:
 
-![Proxmox VE Sysbench Result](images/1.png)
+* **Proxmox VE Output:**  
+  ![Proxmox VE Sysbench Output](CC-Experiment-01-Hypervisor-Analysis/screenshots/type1-proxmox/06-proxmox-sysbench-result.png)
 
-*Figure 1: Proxmox VE Sysbench Benchmark Console Output.*
-
----
-
-### VMware Workstation (Type-2 Hypervisor)
-Captured execution output from the VMware Workstation Ubuntu virtual machine:
-
-![VMware Workstation Sysbench Result](images/2.png)
-
-*Figure 2: VMware Workstation Sysbench Benchmark Console Output.*
+* **VMware Workstation Output:**  
+  ![VMware Workstation Sysbench Output](CC-Experiment-01-Hypervisor-Analysis/screenshots/type2-vmware/04-vmware-sysbench-result.jpeg)
 
 ---
 
-## 5. Comparative Performance Results
+## 6. Performance Comparison Table
 
-| Measured Metric | Proxmox VE (Type-1) | VMware Workstation (Type-2) | Variance / Delta | Advantage |
-| :--- | :---: | :---: | :---: | :---: |
-| **Total Test Duration** | **10.0005 s** | **10.0004 s** | 0.0001 s | Standard 10s Window |
-| **Total Events Completed** | **15,877** | **14,410** | **+1,467 events** | **Proxmox VE (+10.18%)** |
-| **Throughput (EPS)** | **1,587.47** | **1,440.80** | **+146.67 eps** | **Proxmox VE (+10.18%)** |
-| **Minimum Latency** | **0.59 ms** | **0.65 ms** | **-0.06 ms** | **Proxmox VE (9.2% faster)** |
-| **Average Latency** | **0.63 ms** | **0.69 ms** | **-0.06 ms** | **Proxmox VE (8.7% faster)** |
-| **95th Percentile Latency** | **0.65 ms** | **0.90 ms** | **-0.25 ms** | **Proxmox VE (27.8% lower)** |
-| **Maximum Latency** | **1.34 ms** | **1.89 ms** | **-0.55 ms** | **Proxmox VE (29.1% lower)** |
+The table below summarizes the exact values recorded during the benchmark:
 
----
+# Hypervisor Performance Comparison
 
-## 6. Graphical Performance Profiles
-
-### 6.1 Computational Throughput
-![Throughput Comparison](images/events_per_second_comparison.png)
-*Figure 3: Events processed per second under sustained CPU stress.*
+| Performance Metric | Proxmox VE (Type-1) | VMware Workstation (Type-2) | Delta | Percentage Change | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Execution Time** | 10.0005 sec | 10.0004 sec | +0.0001 sec | — | — |
+| **Total Events** | 15,877 | 14,410 | +1,467.00 | +10.18% | **Proxmox VE** |
+| **Events / sec** | 1,587.47 | 1,440.80 | +146.67 | +10.18% | **Proxmox VE** |
+| **Min Latency (ms)** | 0.59 | 0.65 | -0.06 | -9.23% | **Proxmox VE** |
+| **Avg Latency (ms)** | 0.63 | 0.69 | -0.06 | -8.70% | **Proxmox VE** |
+| **Max Latency (ms)** | 1.34 | 1.89 | -0.55 | -29.10% | **Proxmox VE** |
 
 ---
 
-### 6.2 Latency Distribution Profile
-![Latency Comparison](images/latency_comparison.png)
-*Figure 4: Latency profile showing tighter bounds and reduced tail latency on Type-1.*
+### Key Takeaway
+
+Proxmox VE (Type-1) outperformed VMware Workstation (Type-2) across all metrics, achieving **10.18% higher throughput** and **8.70% lower average latency**, with **29.10% lower peak latency spikes**.
 
 ---
 
-### 6.3 Total Workload Capacity
-![Total Events](images/total_events_comparison.png)
-*Figure 5: Total prime calculation events completed across the 10-second window.*
+## 7. Graphs
+
+### Total Events Comparison
+![Total Events Comparison](CC-Experiment-01-Hypervisor-Analysis/screenshots/comparison/total_events_comparison.png)
+
+### Events per Second Comparison
+![Events per Second Comparison](CC-Experiment-01-Hypervisor-Analysis/screenshots/comparison/events_per_second_comparison.png)
+
+### Latency Comparison
+![Latency Comparison](CC-Experiment-01-Hypervisor-Analysis/screenshots/comparison/latency_comparison.png)
+
+### Overall Performance Dashboard
+![Overall Performance Dashboard](CC-Experiment-01-Hypervisor-Analysis/screenshots/comparison/overall_performance_dashboard.png)
 
 ---
 
-### 6.4 Multi-Metric Performance Overview
-![Comprehensive Dashboard](images/overall_performance_dashboard.png)
-*Figure 6: Consolidated evaluation dashboard.*
+## 8. Takeaway & Conclusion
+
+#### 1. CPU Throughput
+
+##### Results
+- Proxmox VE: **15,877 events / 10s ≈ 1,587.47 events/s**
+- VMware Workstation: **14,410 events / 10s ≈ 1,440.80 events/s**
+- Proxmox achieved **10.18% higher throughput**.
+
+##### Technical Reason
+- Proxmox runs directly on the hardware using KVM, avoiding the additional desktop host-OS layer present in VMware Workstation.
+
+#### 2. Latency
+
+##### Results
+- Proxmox VE: **0.63 ms average**
+- VMware Workstation: **0.69 ms average**
+- 95th Percentile Latency: **0.65 ms vs 0.90 ms**
+- Maximum latency: **1.34 ms vs 1.89 ms**, showing significantly larger latency spikes in the VMware setup.
+
+#### 3. Why the Difference?
+
+##### Technical Explanation
+- In VMware Workstation, the VM runs as a process managed by the **Windows host OS**.
+- CPU scheduling, memory management, I/O, and host background processes introduce additional overhead and contention.
+- Proxmox's KVM-based architecture provides a direct virtualization path to the physical hardware with Ring 0 scheduler execution.
+
+#### 4. Conclusion
+
+##### Key Findings
+- The experiment demonstrates that **Proxmox performed better under this specific workload and configuration**.
+- It proves that bare-metal virtualization reduces translation tax and delivers tighter tail-latency consistency.
+- Proxmox is designed for **server and data-center virtualization**, while VMware Workstation is primarily designed for **desktop development, testing, and labs**.
+
+#### Engineering Recommendation
+* **Use Type-1 Hypervisors (Proxmox VE, ESXi):** Ideal for cloud infrastructure, enterprise data centers, and heavy computational workloads.
+* **Use Type-2 Hypervisors (VMware Workstation, VirtualBox):** Ideal for local desktop development, software testing, and educational environments.
 
 ---
 
-## 7. Systems Engineering Insights
+## 9. Repository Structure
 
-1. **Kernel Scheduler Integration:**  
-   In Proxmox VE, KVM maps guest virtual CPUs directly to host Linux kernel POSIX threads. Instructions execute directly on physical cores via hardware VMX mode, eliminating intermediate system call translation.
-2. **Host Operating System Contention:**  
-   VMware Workstation operates within user space on the Windows host. Guest execution competes with background host processes (antivirus, background services, UI rendering), inducing scheduling latency and higher peak spikes (1.89 ms vs 1.34 ms).
-3. **Tail Latency Predictability:**  
-   Proxmox VE exhibited stable execution times with a 95th percentile latency of 0.65 ms (compared to 0.90 ms on VMware), making bare-metal hypervisors essential for latency-sensitive service-level agreements (SLAs).
-
----
-
-## 8. Deployment Recommendations
-
-| Requirement | Preferred Architecture | Rationale |
-| :--- | :--- | :--- |
-| **Cloud Infrastructure & Data Centers** | **Type-1 (Proxmox VE / KVM / ESXi)** | Zero host OS overhead, high throughput, and deterministic latency. |
-| **Database & Real-Time Computing** | **Type-1 (Proxmox VE / KVM)** | Predictable low tail latency and direct hardware I/O mapping. |
-| **Local Development & Sandboxing** | **Type-2 (VMware / VirtualBox)** | Quick provisioning, seamless desktop integration, and hardware portability. |
-
----
-
-## 9. Reproducibility & Scripts
-
-The repository includes automation and plotting utilities in the `scripts/` directory:
-
-```bash
-# 1. Automated VM benchmark & telemetry
-chmod +x scripts/benchmark.sh
-./scripts/benchmark.sh
-
-# 2. Re-generate comparative visualization plots
-python scripts/generate_plots.py
-
-# 3. Compute delta ratios and percentage margins
-python scripts/parse_sysbench.py
+```text
+CC-Experiment-01-Hypervisor-Analysis/
+│
+├── results/
+│   └── performance-analysis.md
+│
+├── screenshots/
+│   │
+│   ├── comparison/
+│   │   ├── events_per_second_comparison.png
+│   │   ├── latency_comparison.png
+│   │   ├── overall_performance_dashboard.png
+│   │   └── total_events_comparison.png
+│   │
+│   ├── type1-proxmox/
+│   │   ├── 01-proxmox-dashboard.jpeg
+│   │   ├── 02-proxmox-vm-configuration.jpeg
+│   │   ├── 03-proxmox-vm-running.jpeg
+│   │   ├── 04-proxmox-ubuntu-console.jpeg
+│   │   ├── 05-01-proxmox-system-configuration.png
+│   │   ├── 05-02-proxmox-system-configuration.png
+│   │   ├── 06-proxmox-sysbench-result.png
+│   │   ├── 07-01-proxmox-resource-monitoring.png
+│   │   ├── 07-02-proxmox-resource-monitoring.png
+│   │   └── 07-03-proxmox-resource-monitoring.png
+│   │
+│   └── type2-vmware/
+│       ├── 01-vmware-vm-configuration.png
+│       ├── 02-vmware-vm-running.png
+│       ├── 03-vmware-system-configuration.jpeg
+│       └── 04-vmware-sysbench-result.jpeg
+│
+├── scripts/
+│   ├── benchmark.sh
+│   ├── generate_plots.py
+│   └── parse_sysbench.py
+│
+└── README.md
 ```
 
 ---
-*Laboratory Experiment conducted for Cloud Computing Laboratory Course.*
+
+## 10. How To Run
+
+- Make `benchmark.sh` executable and run it:
+```bash
+chmod +x CC-Experiment-01-Hypervisor-Analysis/scripts/benchmark.sh
+./CC-Experiment-01-Hypervisor-Analysis/scripts/benchmark.sh
+```
+
+- Run `parse_sysbench.py` to compare benchmark outputs:
+```bash
+python CC-Experiment-01-Hypervisor-Analysis/scripts/parse_sysbench.py
+```
+
+- To run `generate_plots.py`:
+  - Pre-installation:
+    ```bash
+    pip install matplotlib numpy
+    ```
+  - Execution:
+    ```bash
+    python CC-Experiment-01-Hypervisor-Analysis/scripts/generate_plots.py
+    ```
